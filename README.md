@@ -1,5 +1,5 @@
 # fasttree
-Small, distroless-when-possible container for `fasttree`.
+Small compatibility-focused container for `fasttree`.
 
 ## how to use
 ```bash

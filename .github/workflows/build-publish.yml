@@ -1,4 +1,4 @@
-name: Build and Publish Distroless fasttree
+name: Build and Publish fasttree
 
 on:
   push:
