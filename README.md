@@ -1,7 +1,21 @@
 # fasttree
-Small compatibility-focused container for `fasttree`.
 
-## how to use
+Minimal container for FastTree.
+
+## Quick Usage
+
 ```bash
-docker run --rm -v "$(pwd):/data" picotainers/fasttree:latest --help
+docker run --rm docker.io/picotainers/fasttree:latest -help
+```
+
+## Usage
+
+```bash
+docker run --rm -v "$(pwd):/data" -w /data docker.io/picotainers/fasttree:latest -nt alignment.fasta > tree.nwk
+```
+
+## Building
+
+```bash
+docker build -t docker.io/picotainers/fasttree:latest .
 ```
