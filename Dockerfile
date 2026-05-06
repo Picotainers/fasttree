@@ -1,34 +1,38 @@
-# syntax=docker/dockerfile:1
-# Compatibility-first template for fasttree.
-# Installs package from Bioconda and copies the full conda runtime to avoid missing libs/interpreters.
+FROM debian:bookworm-slim AS builder
 
-FROM mambaorg/micromamba:2.0.5-debian12-slim AS builder
+ARG FASTTREE_REF=v2.2.0
 
-RUN micromamba install -y -n base -c conda-forge -c bioconda \
-    fasttree \
-    && micromamba clean --all --yes
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    gcc \
+    libc6-dev \
+    make \
+    && rm -rf /var/lib/apt/lists/*
 
-# Resolve a runnable command for this package.
-# Prefer exact match, then underscore variant, then prefix match.
+WORKDIR /tmp/build
 RUN set -eux; \
-    BIN=""; \
-    if [ -x "/opt/conda/bin/fasttree" ]; then BIN="/opt/conda/bin/fasttree"; fi; \
-    if [ -z "$BIN" ]; then CAND="/opt/conda/bin/$(echo fasttree | tr '-' '_')"; [ -x "$CAND" ] && BIN="$CAND" || true; fi; \
-    if [ -z "$BIN" ]; then BIN="$(find /opt/conda/bin -maxdepth 1 -type f -perm -111 -name 'fasttree*' | head -n1 || true)"; fi; \
-    test -n "$BIN"; \
-    printf '%s\n' "$BIN" > /tmp/tool-entry-path
+    curl -fsSL "https://raw.githubusercontent.com/morgannprice/fasttree/${FASTTREE_REF}/FastTree.c" -o FastTree.c; \
+    gcc -O3 -finline-functions -funroll-loops -Wall -o fasttree FastTree.c -lm
 
-FROM mambaorg/micromamba:2.0.5-debian12-slim
+FROM debian:bookworm-slim
 
-COPY --from=builder /opt/conda /opt/conda
-COPY --from=builder /tmp/tool-entry-path /tmp/tool-entry-path
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libc6 \
+    && rm -rf /var/lib/apt/lists/*
 
-USER root
-ENV PATH="/opt/conda/bin:${PATH}"
-ENV LD_LIBRARY_PATH="/opt/conda/lib:/opt/conda/lib64"
-RUN set -eux; \
-    BIN="$(cat /tmp/tool-entry-path)"; \
-    printf '#!/usr/bin/env bash\nexec "%s" "$@"\n' "$BIN" > /usr/local/bin/fasttree
-RUN chmod +x /usr/local/bin/fasttree && rm -f /tmp/tool-entry-path
+COPY --from=builder /tmp/build/fasttree /usr/local/bin/fasttree
+
+RUN printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'set -e' \
+    'if [ "${1:-}" = "fasttree" ]; then shift; fi' \
+    'if [ "${1:-}" = "--help" ]; then set -- -help "${@:2}"; fi' \
+    'exec /usr/local/bin/fasttree "$@"' \
+    > /usr/local/bin/entrypoint.sh \
+    && chmod +x /usr/local/bin/entrypoint.sh
+
 WORKDIR /data
-ENTRYPOINT ["/usr/local/bin/fasttree"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["-help"]
